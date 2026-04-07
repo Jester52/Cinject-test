@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="icon.png">
+    <title>Gestión de Links</title>
+    <style>
+        :root { --bg-color: #000000; --card-bg: #1a1a1a; --text-color: #e8eaed; --btn-color: #8ab4f8; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: var(--bg-color); color: var(--text-color); }
+        .card { background: var(--card-bg); padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #333; }
+        .input-group { position: relative; margin: 10px 0; }
+        input { width: 100%; padding: 12px; box-sizing: border-box; background: #222; color: white; border: 1px solid #444; border-radius: 8px; }
+        #togglePassword { position: absolute; right: 10px; top: 12px; background: none; border: none; color: #888; cursor: pointer; }
+        button.main-btn { width: 100%; padding: 12px; background: var(--btn-color); color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        
+        /* Contador oculto */
+        .stats { margin-top: 15px; font-size: 0.85em; color: #888; text-align: center; display: none; }
+        
+        #listaLinks { margin-top: 20px; display: none; }
+        .link-container { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .link-box { background: #000; padding: 10px; border-radius: 4px; font-size: 0.8em; word-break: break-all; flex-grow: 1; border-left: 4px solid var(--btn-color); }
+        .copy-btn { background: #333; border: none; color: white; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
+
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; }
+        .toast { background: rgba(30, 30, 30, 0.9); color: white; padding: 15px 25px; margin-bottom: 10px; border-radius: 8px; backdrop-filter: blur(5px); border-left: 4px solid var(--btn-color); animation: fadeIn 0.3s, fadeOut 0.3s 2.5s; }
+        .toast-error { background: rgba(183, 28, 28, 0.9); color: white; padding: 15px 25px; margin-bottom: 10px; border-radius: 8px; backdrop-filter: blur(5px); animation: fadeIn 0.3s, fadeOut 0.3s 2.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<div class="card">
+    <h2 style="text-align: center; margin-bottom: 5px;">Generador de links</h2>
+    <div class="stats" id="contadorSalas"></div>
+    
+    <div class="input-group">
+        <input type="password" id="claveSecreta" placeholder="Clave de acceso">
+        <button type="button" id="togglePassword" onclick="togglePass()">VER</button>
+    </div>
+    <input type="text" id="nombreMago" placeholder="ID (Ej: shakespeare)">
+    <button class="main-btn" onclick="ejecutarAccion()">GENERAR</button>
+
+    <div id="listaLinks">
+        <p>Google:</p>
+        <div class="link-container"><div class="link-box" id="url1"></div><button class="copy-btn" onclick="copiarTexto('url1')">Copiar</button></div>
+        <p>Monitor:</p>
+        <div class="link-container"><div class="link-box" id="url2"></div><button class="copy-btn" onclick="copiarTexto('url2')">Copiar</button></div>
+        <p>YouTube:</p>
+        <div class="link-container"><div class="link-box" id="url3"></div><button class="copy-btn" onclick="copiarTexto('url3')">Copiar</button></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCqNmPPbSLzw7SkQp2QQ1YFNGaCRFSqeQQ",
+        authDomain: "cinyect.firebaseapp.com",
+        databaseURL: "https://cinyect-default-rtdb.firebaseio.com",
+        projectId: "cinyect",
+        storageBucket: "cinyect.firebasestorage.app",
+        messagingSenderId: "747813074248",
+        appId: "1:747813074248:web:a7eec94a6211f45a1a2f7d"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+
+
+    function mostrarToast(mensaje, esError = false) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = esError ? 'toast-error' : 'toast';
+        toast.innerText = mensaje;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Función para obtener y mostrar el contador (Solo se llama cuando hay permiso)
+    async function actualizarContador() {
+        const snapshot = await get(ref(database, 'salas_activas'));
+        const data = snapshot.val();
+        const total = data ? Object.keys(data).length : 0;
+        const div = document.getElementById('contadorSalas');
+        div.innerText = `Salas activas actualmente: ${total}`;
+        div.style.display = 'block';
+    }
+
+    window.copiarTexto = function(id) {
+        const texto = document.getElementById(id).innerText;
+        if (!texto) return;
+        navigator.clipboard.writeText(texto).then(() => mostrarToast("¡Link copiado!"));
+    }
+
+    window.togglePass = function() {
+        const p = document.getElementById('claveSecreta');
+        const b = document.getElementById('togglePassword');
+        p.type = (p.type === "password") ? "text" : "password";
+        b.innerText = (p.type === "password") ? "VER" : "OCULTAR";
+    }
+
+
+    window.ejecutarAccion = async function() {
+    const _k1 = "Q3Jvbm9z"; 
+    const _k2 = "QWRtaW4xMjM="; 
+
+    const WEBHOOK_URL = "https://hook.us2.make.com/h1bod1zz05u7cinca4mx7rpsky9l91a2";
+    
+    const _uI = document.getElementById('claveSecreta').value;
+    const _uE = btoa(_uI); 
+    
+    const inputNombre = document.getElementById('nombreMago');
+    const nombre = inputNombre.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const divContador = document.getElementById('contadorSalas');
+
+    // Reset visual de seguridad
+    divContador.style.display = 'none';
+    document.getElementById('listaLinks').style.display = 'none';
+
+    // 1. Lógica Trapdoor (Redirección Admin) 
+    // Si es admin, sale de la función aquí mismo y no envía nada a Telegram
+    if (_uE === _k2) {
+        mostrarToast("Acceso de administrador...");
+        setTimeout(() => window.location.href = "admin.html", 1000);
+        return; 
+    }
+
+    // 2. Validación de Clave para Generar
+    if (_uE !== _k1) {
+        return mostrarToast("Clave incorrecta", true);
+    }
+
+    // 3. Validación de nombre de sala
+    if (!nombre) return mostrarToast("Ingresa un nombre de sala", true);
+
+    try {
+        const salaSnapshot = await get(ref(database, 'salas_activas/' + nombre));
+        
+        if (salaSnapshot.exists()) {
+            return mostrarToast("Error: El nombre de sala ya existe", true);
+        }
+
+        // 4. ÉXITO: Guardar en Firebase
+        await set(ref(database, 'salas_activas/' + nombre), {
+            nombre: nombre, 
+            creado: new Date().toISOString()
+        });
+        
+        await actualizarContador();
+
+        const linkGoogle = `https://jester52.github.io/cinject/g.html?id=${nombre}`;
+        const linkMonitor = `https://jester52.github.io/cinject/m.html?id=${nombre}`;
+        const linkYouTube = `https://jester52.github.io/cinject/yt.html?id=${nombre}`;
+        
+        document.getElementById('url1').innerText = linkGoogle;
+        document.getElementById('url2').innerText = linkMonitor;
+        document.getElementById('url3').innerText = linkYouTube;
+        document.getElementById('listaLinks').style.display = 'block';
+
+        // 5. ENVÍO A TELEGRAM (Solo llega aquí si se generó una sala con éxito)
+        await fetch(WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                nombre: nombre, 
+                google: linkGoogle, 
+                monitor: linkMonitor, 
+                youtube: linkYouTube 
+            })
+        });
+
+        mostrarToast("¡Sala única generada!");
+        document.getElementById('claveSecreta').value = ""; 
+        
+    } catch (e) { 
+        console.error(e);
+        mostrarToast("Error de conexión", true); 
+    }
+}
+    
+    window.addEventListener('keydown', (e) => {
+    if (e.key === "F12" || (e.ctrlKey && e.shiftKey && e.key === "I")) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+
+</script>
+
+</body>
+</html>

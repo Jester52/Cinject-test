@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Control | Cinyect</title>
+    <style>
+        :root { --primary: #7c4dff; --bg-grad: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); --card: rgba(255, 255, 255, 0.05); }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-grad); min-height: 100vh; color: #fff; margin: 0; display: flex; justify-content: center; padding: 40px; }
+        .container { width: 100%; max-width: 900px; }
+        h1 { text-align: center; font-weight: 300; letter-spacing: 2px; margin-bottom: 30px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        tr { background: var(--card); transition: 0.3s; }
+        td, th { padding: 20px; text-align: left; }
+        .actions { display: flex; gap: 10px; }
+        button { padding: 8px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; transition: 0.3s; }
+        .btn-view { background: var(--primary); color: white; }
+        .btn-edit { background: #4caf50; color: white; }
+        .btn-del { background: #f44336; color: white; }
+        button:hover { opacity: 0.8; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PANEL DE ADMINISTRACIÓN</h1>
+    <table>
+        <thead><tr><th>Nombre de la Sala</th><th>Fecha Creación</th><th>Acciones</th></tr></thead>
+        <tbody id="lista-salas"></tbody>
+    </table>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+<script>
+    // --- PEGA TU CONFIGURACIÓN AQUÍ ---
+    const firebaseConfig = {
+        apiKey: "TU_API_KEY",
+        authDomain: "cinyect.firebaseapp.com",
+        databaseURL: "https://cinyect-default-rtdb.firebaseio.com",
+        projectId: "cinyect",
+        storageBucket: "cinyect.firebasestorage.app",
+        messagingSenderId: "...",
+        appId: "..."
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Carga dinámica de datos
+    database.ref('salas_activas').on('value', (snapshot) => {
+        const tbody = document.getElementById('lista-salas');
+        tbody.innerHTML = '';
+        snapshot.forEach((child) => {
+            const data = child.val();
+            const id = child.key;
+            tbody.innerHTML += `<tr>
+                <td><strong>${id}</strong></td>
+                <td>${data.creado ? new Date(data.creado).toLocaleDateString() : 'N/A'}</td>
+                <td class="actions">
+                    <button class="btn-view" onclick="verSala('${id}')">Monitorear</button>
+                    <button class="btn-edit" onclick="renombrarSala('${id}')">Renombrar</button>
+                    <button class="btn-del" onclick="eliminarSala('${id}')">Eliminar</button>
+                </td>
+            </tr>`;
+        });
+    });
+
+    function verSala(id) { window.open('m.html?id=' + id, '_blank'); }
+
+    function eliminarSala(id) {
+        // 1. Definir tu clave secreta (asegúrate de que sea la misma que en index.html)
+        const CLAVE_ADMIN = "CR0N0S"; // Clave para eliminar
+        
+        // 2. Solicitar la clave al usuario
+        const claveIngresada = prompt("Para eliminar la sala '" + id + "', ingresa la clave de administrador:");
+        
+        // 3. Verificar si la clave es correcta
+        if (claveIngresada !== CLAVE_ADMIN) {
+            alert("Clave incorrecta. Operación cancelada.");
+            return; // Detiene la ejecución aquí
+        }
+
+        // 4. Si la clave es correcta, procede a eliminar
+        const cleanId = id.trim();
+        database.ref('salas_activas/' + cleanId).remove()
+        .then(() => {
+            alert("Sala " + cleanId + " eliminada exitosamente.");
+        })
+        .catch((error) => {
+            console.error("Error al eliminar: ", error);
+            alert("No se pudo eliminar: " + error.message);
+        });
+    }
+
+    function renombrarSala(oldId) {
+        const newId = prompt("Nuevo nombre para la sala:", oldId);
+        if (newId && newId !== oldId) {
+            database.ref('salas_activas/' + oldId).once('value', (snap) => {
+                const data = snap.val();
+                database.ref('salas_activas/' + newId).set(data);
+                database.ref('salas_activas/' + oldId).remove();
+            });
+        }
+    }
+</script>
+</body>
+</html>

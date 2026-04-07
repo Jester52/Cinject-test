@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cronos AI Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+        :root {
+            --primary: #0056b3;
+            --bg-body: #f4f7f9;
+            --card-bg: #ffffff;
+            --text-main: #1a1a1a;
+            --text-muted: #6c757d;
+            --accent: #007bff;
+        }
+
+        body.dark-mode {
+            --bg-body: #0f1113;
+            --card-bg: #1a1d21;
+            --text-main: #e9ecef;
+            --text-muted: #adb5bd;
+            --primary: #4dabff;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0; background-color: var(--bg-body); color: var(--text-main);
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            transition: background 0.3s ease;
+        }
+
+        header {
+            width: 100%; padding: 15px 25px; background: var(--card-bg);
+            display: flex; justify-content: space-between; align-items: center;
+            box-sizing: border-box; border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .sala-tag { font-size: 11px; font-weight: 700; background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
+
+        .container { width: 92%; max-width: 500px; margin-top: 30px; display: flex; flex-direction: column; gap: 20px; }
+
+        .card { 
+            background: var(--card-bg); border-radius: 16px; padding: 30px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .label-group { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        #word {
+            font-size: 48px; 
+            font-weight: 800; 
+            margin: 10px 0;
+            color: var(--primary);
+            word-break: break-all;
+            line-height: 1.1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        #ai-box { 
+            display: none; 
+            border-top: 5px solid var(--accent);
+            text-align: left;
+        }
+
+        .ai-content { 
+            font-size: 16px; line-height: 1.6; color: var(--text-main); 
+            white-space: pre-wrap; background: rgba(0,123,255,0.05); 
+            padding: 20px; border-radius: 12px; border: 1px solid rgba(0,123,255,0.1);
+        }
+
+        .loader { display: none; padding: 20px; text-align: center; }
+        .dot { display: inline-block; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; margin: 0 4px; animation: bounce 1.4s infinite ease-in-out both; }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1.0); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined">psychology</span> CRONOS MONITOR
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="salaDisplay" class="sala-tag">---</span>
+        <button id="theme-btn" style="background:none; border:none; cursor:pointer; color:var(--text-muted);">
+            <span class="material-symbols-outlined">contrast</span>
+        </button>
+    </div>
+</header>
+
+<div class="container">
+    <div class="card">
+        <div class="label-group"><span class="material-symbols-outlined" style="font-size:16px">target</span> Captura en Tiempo Real</div>
+        <h2 id="word">ESPERANDO...</h2>
+    </div>
+
+    <div class="card" id="ai-box">
+        <div class="label-group" style="justify-content: flex-start;"><span class="material-symbols-outlined" style="font-size:16px">auto_awesome</span> Análisis de IA</div>
+        <div id="ai-loading" class="loader">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div id="ai-text" class="ai-content"></div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+<script>
+    // 1. CONFIGURACIÓN
+    const GEMINI_API_KEY = "AIzaSyAMx0BLtfoOrBRunEuq0SttxCqiHIbgga8"; 
+    
+    const firebaseConfig = {
+        apiKey: "AIzaSyCqNmPPbSLzw7SkQp2QQ1YFNGaCRFSqeQQ",
+        authDomain: "cinyect.firebaseapp.com",
+        databaseURL: "https://cinyect-default-rtdb.firebaseio.com",
+        projectId: "cinyect",
+        storageBucket: "cinyect.firebasestorage.app",
+        messagingSenderId: "747813074248",
+        appId: "1:747813074248:web:a7eec94a6211f45a1a2f7d"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    const params = new URLSearchParams(window.location.search);
+    const miSala = params.get('id') || 'general';
+    document.getElementById('salaDisplay').innerText = miSala;
+
+    let ultimaPalabra = "";
+
+    // 2. FUNCIÓN DE IA
+    async function llamarIA(palabra, promptBase) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
+        // Reemplazamos el marcador por la palabra real
+        const promptFinal = promptBase.replace(/{{SEARCH}}/g, palabra);
+        
+        const body = { 
+            contents: [{ 
+                parts: [{ text: promptFinal }] 
+            }] 
+        };
+
+        try {
+            const resp = await fetch(url, { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(body) 
+            });
+            const data = await resp.json();
+            return data.candidates[0].content.parts[0].text;
+        } catch (e) { 
+            return "La conexión con la IA falló. Verifica tu API Key."; 
+        }
+    }
+    // 3. ESCUCHA DE FIREBASE
+db.ref(`usuarios/${miSala}`).on('value', async (snapshot) => {
+    const data = snapshot.val();
+    if (!data || !data.busquedaActual) return;
+
+    const palabra = data.busquedaActual.palabra;
+    const domWord = document.getElementById('word');
+    const domAiBox = document.getElementById('ai-box');
+    const domAiText = document.getElementById('ai-text');
+    const domLoading = document.getElementById('ai-loading');
+
+    // 1. Manejo de RESET
+    if (palabra === "RESET") {
+        domWord.innerText = "ESPERANDO...";
+        domAiBox.style.display = "none";
+        ultimaPalabra = "";
+        return;
+    }
+
+    // 2. Si hay una palabra nueva, procesamos
+    if (palabra !== ultimaPalabra) {
+        ultimaPalabra = palabra;
+        domWord.innerText = palabra.toUpperCase();
+        
+        // 3. Verificamos si hay prompts configurados en la sala
+        if (data.prompts) {
+            domAiBox.style.display = "block";
+            domLoading.style.display = "block";
+            domAiText.style.display = "none";
+
+            try {
+                // Obtenemos todos los prompts de la sala
+                const keys = Object.keys(data.prompts);
+                // Por defecto, usamos el primero de la lista (el más reciente o único)
+                const promptSeleccionado = data.prompts[keys[0]].contenido;
+                
+                // 4. Llamada a la IA pasando la palabra y el prompt
+                const respuestaIA = await llamarIA(palabra, promptSeleccionado);
+                
+                domLoading.style.display = "none";
+                domAiText.innerText = respuestaIA;
+                domAiText.style.display = "block";
+            } catch (err) {
+                console.error("Error procesando IA:", err);
+                domLoading.style.display = "none";
+                domAiText.innerText = "Error al obtener respuesta de la IA.";
+                domAiText.style.display = "block";
+            }
+        }
+    }
+});
+
+    // Cambio de tema
+    document.getElementById('theme-btn').onclick = () => document.body.classList.toggle('dark-mode');
+</script>
+</body>
+</html>
